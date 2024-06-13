@@ -2,25 +2,26 @@ import UIKit
 import SwiftUI
 import Combine
 
-class SelfSizedModalModel: ObservableObject {
+public class BottomSheetModel: ObservableObject {
 	@Published var size: CGSize = .zero
+	@Published public var expanded: Bool = false
 }
 
-class BottomSheet<T: View>: UIViewController {
+public class BottomSheet<T: View>: UIViewController {
 	
-	private let model = SelfSizedModalModel()
+	private let model = BottomSheetModel()
 	private let host: UIHostingController<SizeReportingModal<T>>
 	private let sizeReporter: SizeReportingModal<T>
 	private var cancellable: [AnyCancellable] = []
 	
-	init(_ content: T) {
+	public init(_ content: T) {
 		self.sizeReporter = SizeReportingModal(content: content, model: model)
 		self.host = UIHostingController(rootView: self.sizeReporter)
 		super.init(nibName: nil, bundle: nil)
 	}
 	
 	
-	override func viewDidLoad() {
+	public override func viewDidLoad() {
 		self.view.addSubview(host.view)
 		host.view.translatesAutoresizingMaskIntoConstraints = false
 		NSLayoutConstraint.activate([
@@ -33,9 +34,16 @@ class BottomSheet<T: View>: UIViewController {
 		model.$size.sink { size in
 			self.sizeDidChange(to: size)
 		}.store(in: &cancellable)
+		model.$expanded.sink { size in
+			
+			self.sheetPresentationController?.animateChanges {
+				self.sheetPresentationController?.detents = [.large()]
+			}
+		}.store(in: &cancellable)
 	}
 	
 	func sizeDidChange(to: CGSize) {
+		guard !model.expanded else { return }
 		self.sheetPresentationController?.animateChanges {
 			self.sheetPresentationController?.detents = [.custom(resolver: { context in
 				return to.height
@@ -52,10 +60,12 @@ class BottomSheet<T: View>: UIViewController {
 struct SizeReportingModal<Content: View>: View {
 	
 	let content: Content
-	@ObservedObject var model: SelfSizedModalModel
+	@ObservedObject var model: BottomSheetModel
 	
 	var body: some View {
 		content
+			.environmentObject(self.model)
+			.fixedSize(horizontal: false, vertical: !model.expanded)
 			.overlay(
 				GeometryReader { geo in
 					Color.clear
