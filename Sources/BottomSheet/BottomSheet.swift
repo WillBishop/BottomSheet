@@ -10,18 +10,22 @@ public class BottomSheetModel: ObservableObject {
 public class BottomSheet<T: View>: UIViewController {
 	
 	private let model = BottomSheetModel()
-	private let host: UIHostingController<SizeReportingModal<T>>
-	private let sizeReporter: SizeReportingModal<T>
+	private var host: UIHostingController<SizeReportingModal<T>>?
+	private var sizeReporter: SizeReportingModal<T>?
 	private var cancellable: [AnyCancellable] = []
 	
 	public init(_ content: T) {
-		self.sizeReporter = SizeReportingModal(content: content, model: model)
-		self.host = UIHostingController(rootView: self.sizeReporter)
 		super.init(nibName: nil, bundle: nil)
+		self.sizeReporter = SizeReportingModal(content: content, model: model) {
+			self.dismiss(animated: true)
+		}
+		self.host = UIHostingController(rootView: self.sizeReporter!)
 	}
 	
 	
 	public override func viewDidLoad() {
+		super.viewDidLoad()
+		guard let host else { return }
 		self.view.addSubview(host.view)
 		host.view.translatesAutoresizingMaskIntoConstraints = false
 		NSLayoutConstraint.activate([
@@ -61,9 +65,11 @@ struct SizeReportingModal<Content: View>: View {
 	
 	let content: Content
 	@ObservedObject var model: BottomSheetModel
+	let dismiss: () -> Void
 	
 	var body: some View {
 		content
+			.environment(\.sheetDismiss, DismissBottomSheetAction(action: dismiss))
 			.environmentObject(self.model)
 			.fixedSize(horizontal: false, vertical: !model.expanded)
 			.overlay(
@@ -79,4 +85,22 @@ struct SizeReportingModal<Content: View>: View {
 			)
 	}
 	
+}
+public struct DismissBottomSheetAction {
+	typealias Action = () -> ()
+	let action: Action
+	public func callAsFunction() {
+		action()
+	}
+}
+
+public struct DismissBottomSheetKey: EnvironmentKey {
+	public static var defaultValue: DismissBottomSheetAction? = nil
+}
+
+public extension EnvironmentValues {
+	var sheetDismiss: DismissBottomSheetAction? {
+		get { self[DismissBottomSheetKey.self] }
+		set { self[DismissBottomSheetKey.self] = newValue }
+	}
 }
