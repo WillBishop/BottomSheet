@@ -7,21 +7,38 @@ public class BottomSheetModel: ObservableObject {
 	@Published public var expanded: Bool = false
 }
 
+
+public struct BottomSheetOptions: OptionSet {
+
+    public let rawValue: Int
+    public static let disableSafeArea = BottomSheetOptions(rawValue: 1 << 0)
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+}
+
 public class BottomSheet<T: View>: UIViewController {
-	
+
+
 	private let model = BottomSheetModel()
 	private var host: UIHostingController<SizeReportingModal<T>>?
 	private var sizeReporter: SizeReportingModal<T>?
 	private var cancellable: [AnyCancellable] = []
 	
-	public init(_ content: T) {
-		super.init(nibName: nil, bundle: nil)
-		self.sizeReporter = SizeReportingModal(content: content, model: model) {
-			self.dismiss(animated: true)
-		}
-		self.host = UIHostingController(rootView: self.sizeReporter!)
-	}
-	
+    public init(_ content: T, options: BottomSheetOptions) {
+        super.init(nibName: nil, bundle: nil)
+        self.sizeReporter = SizeReportingModal(content: content, model: model) {
+            self.dismiss(animated: true)
+        }
+        self.host = UIHostingController(rootView: self.sizeReporter!)
+        if options.contains(.disableSafeArea) {
+            if #available(iOS 16.4, *) {
+                self.host?.safeAreaRegions = SafeAreaRegions()
+            }
+        }
+    }
+
 	
 	public override func viewDidLoad() {
 		super.viewDidLoad()
